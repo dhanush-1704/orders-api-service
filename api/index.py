@@ -53,7 +53,7 @@ async def rate_limit_middleware(request: Request, call_next):
     )
     retry_after = rate_limited(client_id)
     if retry_after is not None:
-        return JSONResponse(
+        response = JSONResponse(
             status_code=429,
             content={"detail": "Rate limit exceeded"},
             headers={
@@ -63,7 +63,13 @@ async def rate_limit_middleware(request: Request, call_next):
                 "Access-Control-Allow-Headers": "*",
             },
         )
-    return await call_next(request)
+        return response
+
+    response = await call_next(request)
+    # Guarantee the required header on every HTTP 429 response.
+    if response.status_code == 429 and "Retry-After" not in response.headers:
+        response.headers["Retry-After"] = "10"
+    return response
 
 
 @app.post("/orders")
