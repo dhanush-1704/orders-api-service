@@ -43,6 +43,10 @@ def rate_limited(client_id: str):
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
+    # Let CORS preflight requests pass without consuming a client's quota.
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     # X-Client-Id makes the per-client behavior explicit for API consumers.
     client_id = request.headers.get("X-Client-Id") or (
         request.client.host if request.client else "anonymous"
@@ -52,7 +56,12 @@ async def rate_limit_middleware(request: Request, call_next):
         return JSONResponse(
             status_code=429,
             content={"detail": "Rate limit exceeded"},
-            headers={"Retry-After": str(retry_after)},
+            headers={
+                "Retry-After": str(retry_after),
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+            },
         )
     return await call_next(request)
 
